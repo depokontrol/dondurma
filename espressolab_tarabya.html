@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESPRESSOLAB TARABYA - Ağırlık Tabanlı Sevkiyat Kontrolü</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f7fa; margin: 0; padding: 10px; }
+        .kart { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); width: 100%; max-width: 500px; padding: 15px; margin: 0 auto; box-sizing: border-box; }
+        .ust-bar { background-color: #1a252f; color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
+        .sube { font-size: 16px; font-weight: bold; margin: 0; }
+        
+        /* Gelişmiş Kamera ve Tarama Alanı */
+        .kamera-konteyner { position: relative; width: 100%; max-width: 400px; margin: 0 auto 15px auto; display: none; border-radius: 8px; overflow: hidden; }
+        #video { width: 100%; height: auto; background: #000; display: block; }
+        
+        /* Personelin gramaj yazısını denk getireceği hedef kutusu */
+        .tarama-hedef-kutusu { 
+            position: absolute; top: 50%; left: 50%; 
+            width: 70%; height: 60px; 
+            transform: translate(-20%, -50%); 
+            border: 3px solid #3498db; box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.5); 
+            border-radius: 4px; pointer-events: none; 
+        }
+        
+        .tara-buton { background-color: #e67e22; color: white; border: none; padding: 14px; font-size: 14px; font-weight: bold; border-radius: 6px; width: 100%; cursor: pointer; margin-bottom: 10px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th { background-color: #f8f9fa; color: #34495e; text-align: left; padding: 10px; font-size: 11px; font-weight: bold; border-bottom: 2px solid #e1e8ed; text-transform: uppercase; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e1e8ed; font-size: 13px; }
+        
+        .badge { font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 11px; display: inline-block; }
+        .talep-badge { background-color: #f7dc6f; color: #7d6608; }
+        .okunan-badge { background-color: #d4efdf; color: #196f3d; }
+        .kalan-badge { background-color: #fadbd8; color: #78281f; }
+        .tamamlandi { background-color: #2ecc71 !important; color: white !important; }
+        
+        .durum-mesaji { background-color: #f8f9fa; border: 1px solid #e1e8ed; padding: 10px; border-radius: 6px; text-align: center; margin-top: 10px; font-size: 13px; font-weight: bold; color: #2c3e50; }
+        #canvas { display: none; }
+    </style>
+</head>
+<body>
+    <div class="kart">
+        <div class="ust-bar">
+            <div style="font-size: 9px; letter-spacing: 2px; color: #3498db; font-weight: bold;">ESPRESSOLAB YAPAY ZEKA SEVKİYAT</div>
+            <div class="sube">ESPRESSOLAB TARABYA</div>
+        </div>
+
+        <button class="tara-buton" id="aksiyon-butonu" onclick="kamerayiBaslat()">[📷] GRAMAJ TARAMAYI BAŞLAT</button>
+        
+        <div class="kamera-konteyner" id="kamera-alan">
+            <video id="video" autoplay playsinline></video>
+            <div class="tarama-hedef-kutusu"></div>
+        </div>
+        
+        <canvas id="canvas"></canvas>
+        <div id="bildirim" class="durum-mesaji">Kamera başlatılması bekleniyor...</div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>İstenen Ağırlık Grubu</th>
+                    <th style="text-align: right;">Durum (Kg)</th>
+                </tr>
+            </thead>
+            <tbody id="urun-tablosu">
+                <tr id="agirlik-{{ID_KOD}}" data-talep="1.0" data-okunan="0">
+    <td style="font-weight: 500; color: #2c3e50;">
+        6.0<br>
+        <small style="color:#e67e22; font-weight:bold;">Hedef Paket Grubu: {{MIKTAR_TEK}} kg</small>
+    </td>
+    <td style="text-align: right; white-space: nowrap;">
+        <span class="badge talep-badge">Toplam Talep: 1.0 kg</span><br>
+        <span class="badge okunan-badge" style="margin: 3px 0;">Yüklenen: <span id="okunan-text-{{ID_KOD}}">0</span> kg</span><br>
+        <span id="badge-kalan-{{ID_KOD}}" class="badge kalan-badge">Kalan: <span id="kalan-text-{{ID_KOD}}">1.0</span> kg</span>
+    </td>
+</tr><tr id="agirlik-{{ID_KOD}}" data-talep="1.0" data-okunan="0">
+    <td style="font-weight: 500; color: #2c3e50;">
+        19.5<br>
+        <small style="color:#e67e22; font-weight:bold;">Hedef Paket Grubu: {{MIKTAR_TEK}} kg</small>
+    </td>
+    <td style="text-align: right; white-space: nowrap;">
+        <span class="badge talep-badge">Toplam Talep: 1.0 kg</span><br>
+        <span class="badge okunan-badge" style="margin: 3px 0;">Yüklenen: <span id="okunan-text-{{ID_KOD}}">0</span> kg</span><br>
+        <span id="badge-kalan-{{ID_KOD}}" class="badge kalan-badge">Kalan: <span id="kalan-text-{{ID_KOD}}">1.0</span> kg</span>
+    </td>
+</tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let video = document.getElementById('video');
+        let canvas = document.getElementById('canvas');
+        let bildirim = document.getElementById('bildirim');
+        let taramaDovusu = null;
+
+        async function kamerayiBaslat() {
+            document.getElementById('kamera-alan').style.display = 'block';
+            bildirim.innerText = "Yapay zeka yükleniyor, kamera açılıyor...";
+            
+            try {
+                let stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                video.srcObject = stream;
+                document.getElementById('aksiyon-butonu').style.display = 'none';
+                
+                // Kamera açıldıktan sonra her 1.5 saniyede bir ekran görüntüsü alıp yazıyı okumaya başla
+                taramaDovusu = setInterval(fotografCekVeOku, 1500);
+            } catch (err) {
+                bildirim.innerText = "Kamera erişim hatası: " + err;
+            }
+        }
+
+        function fotografCekVeOku() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                let ctx = canvas.getContext('2d');
+                // Sadece hedef kutusunun içindeki alanı kırparak okumak yapay zekayı hızlandırır
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                bildirim.innerText = "🔍 Yazı aranıyor (Paketi kutucuğa hizalayın)...";
+
+                // Tesseract Yapay Zekası ile resmi metne dönüştür
+                Tesseract.recognize(
+                    canvas,
+                    'eng', // Sayılar genel olduğu için ingilizce veri seti yeterlidir
+                    { logger: m => {} }
+                ).then(({ data: { text } }) => {
+                    analizEtVeEslestir(text);
+                }).catch(err => {
+                    console.error(err);
+                });
+            }
+        }
+
+        function analizEtVeEslestir(metin) {
+            console.log("Okunan Ham Metin:", metin);
+            
+            // Metin içerisinden düzenli ifadelerle (Regex) ağırlıkları cımbızla çekiyoruz (Örn: 5.0, 5,0 , 2.5 vb)
+            let eslesme = metin.match(/(\d+[\.,]\d+)|(\d+)\s*(kg|kg)/i);
+            
+            if (eslesme) {
+                let bulunanAgirlik = eslesme[1] ? eslesme[1] : eslesme[2];
+                bulunanAgirlik = parseFloat(bulunanAgirlik.replace(',', '.'));
+                
+                bildirim.innerText = "Detected: " + bulunanAgirlik + " kg";
+                
+                // Sayfada bu ağırlığa ait bir talep satırı var mı kontrol et
+                // (Miktar eşleşmesi için id yapısını 'urun-Miktar' olarak kurduk)
+                let idNumarasi = bulunanAgirlik.toFixed(1).replace('.', '_');
+                let satir = document.getElementById("agirlik-" + idNumarasi);
+                
+                if (satir) {
+                    let talep = parseFloat(satir.getAttribute('data-talep'));
+                    let okunan = parseFloat(satir.getAttribute('data-okunan'));
+                    
+                    if (okunan < talep) {
+                        okunan += bulunanAgirlik; // Paketin ağırlığı kadar ekle
+                        satir.setAttribute('data-okunan', okunan);
+                        
+                        let kalan = talep - okunan;
+                        if (kalan < 0) kalan = 0;
+                        
+                        document.getElementById("okunan-text-" + idNumarasi).innerText = okunan.toFixed(1);
+                        document.getElementById("kalan-text-" + idNumarasi).innerText = kalan.toFixed(1);
+                        
+                        if (okunan >= talep) {
+                            document.getElementById("badge-kalan-" + idNumarasi).classList.add('tamamlandi');
+                            document.getElementById("badge-kalan-" + idNumarasi).innerText = "TAMAMLANDI";
+                            bildirim.innerText = "✓ " + bulunanAgirlik + " kg grubu başarıyla tamamlandı!";
+                        }
+                    }
+                } else {
+                    bildirim.innerText = "⚠ Okundu (" + bulunanAgirlik + " kg) fakat bu şubenin böyle bir talebi yok!";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
